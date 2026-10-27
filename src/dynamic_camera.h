@@ -41,12 +41,40 @@ struct DynamicCamera {
         // collect statistics on the player position and velocity in (normalized, if you like)
         // window coordinates. Compute lookAhead distance in world coords, adjusting for
         // if the player is moving left or right.
-        // Now update lookAhead state using an EMA over its previous state and the lookAhead world
-        // vector. Then determine if the player is in the dead zone, soft rejection zone, or hard
-        // rejection zone. For each, perform EMA on the delta of the camera displacement (ignoring
-        // lookahead) appropriately. Next,
-        // set the camera center by offsetting the cameraUnadjustedCenter, combining lookAhead.
+
+        // State of trackedVelocityWorld already accounts for direction and magnitude
+        // Just convert to window percentage
+        lookAhead = camera.worldToWindowPercentDist(trackedVelocityWorld).x;
+
+        // Now update lookAhead state using an EMA over its previous state and the lookAhead world vector. 
+        
+        lookaheadState = alpha * lookAhead + (1.f - alpha) * lookaheadState;
+
+        // Then determine if the player is in the dead zone, soft rejection zone, or hard rejection zone. 
+        // For each, perform EMA on the delta of the camera displacement (ignoring lookahead) appropriately. 
+        // Next, set the camera center by offsetting the cameraUnadjustedCenter, combining lookAhead.
         // Finally update cameraUnadjustedCenter, but without lookahead.
+        
+        // Get delta for player position vs camera center in normalized window units
+        sf::Vector2f player_delta = camera.worldToWindowPercentDist(
+            trackedPosWorld - cameraUnadjustedCenter
+        );
+        // Check hard/soft/dead in that order
+        if( !softZoneX.contains(player_delta.x) ) {         // Beyond Hard zone
+            // Hard set camera so player falls within hard zone
+            sf::Vector2f camera_delta = camera.windowPercentToWorldDist({
+                softZoneX.signedDistance(player_delta.x),
+                0.f
+            });
+            camera_delta.y = cameraUnadjustedCenter.y;
+            camera.translateWorld(camera_delta);
+        }
+        else if ( !deadZoneX.contains(player_delta.x) ){    // Beyond Soft zone
+
+        }
+        else {                                              // If not beyond Hard or Soft zone, player is within Dead zone
+
+        }
     }
 
     float alpha;  // alpha to use for damping of camera position, *as well as* for smoothing of
