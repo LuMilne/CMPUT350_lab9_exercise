@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <limits>
+#include <algorithm>
 
 #include "camera.h"
 
@@ -39,42 +40,44 @@ struct DynamicCamera {
     ) {
         // TODO: (HINTS/outline)
         // collect statistics on the player position and velocity in (normalized, if you like)
-        // window coordinates. Compute lookAhead distance in world coords, adjusting for
-        // if the player is moving left or right.
+        // window coordinates. 
+        sf::Vector2f norm_player_pos = camera.worldToWindowPercent(trackedPosWorld);
+        sf::Vector2f norm_player_vel = camera.worldToWindowPercentDist(trackedVelocityWorld);
 
-        // State of trackedVelocityWorld already accounts for direction and magnitude
-        // Just convert to window percentage
-        lookAhead = camera.worldToWindowPercentDist(trackedVelocityWorld).x;
+        // Compute lookAhead distance in world coords, adjusting for if the player is moving left or right.
+        lookAhead = 0.f;
+        if(norm_player_vel.x > 0.f) {
+            lookAhead = norm_player_pos.x - deadZoneX.min;
+        }
+        else if(norm_player_vel.x < 0.f) {
+            lookAhead = norm_player_pos.x - deadZoneX.max;
+        }
+        std::cout << lookAhead << '\n';
 
         // Now update lookAhead state using an EMA over its previous state and the lookAhead world vector. 
-        
-        lookaheadState = alpha * lookAhead + (1.f - alpha) * lookaheadState;
+        lookaheadState = alpha * camera.windowPercentToWorld({lookAhead,0.f}).x + (1-alpha) * lookaheadState;
 
         // Then determine if the player is in the dead zone, soft rejection zone, or hard rejection zone. 
         // For each, perform EMA on the delta of the camera displacement (ignoring lookahead) appropriately. 
         // Next, set the camera center by offsetting the cameraUnadjustedCenter, combining lookAhead.
         // Finally update cameraUnadjustedCenter, but without lookahead.
         
-        // Get delta for player position vs camera center in normalized window units
-        sf::Vector2f player_delta = camera.worldToWindowPercentDist(
-            trackedPosWorld - cameraUnadjustedCenter
-        );
-        // Check hard/soft/dead in that order
-        if( !softZoneX.contains(player_delta.x) ) {         // Beyond Hard zone
-            // Hard set camera so player falls within hard zone
-            sf::Vector2f camera_delta = camera.windowPercentToWorldDist({
-                softZoneX.signedDistance(player_delta.x),
-                0.f
-            });
-            camera_delta.y = cameraUnadjustedCenter.y;
-            camera.translateWorld(camera_delta);
+        sf::Vector2f camera_delta = {
+            alpha * (trackedPosWorld.x - cameraUnadjustedCenter.x) + (1-alpha) * cameraUnadjustedCenter.x,
+            0.f
+        };
+        if( deadZoneX.contains(norm_player_pos.x) ) {         // Dead Zone
+            std::cout << "dead\n";
+            cameraUnadjustedCenter.x += lookaheadState;
         }
-        else if ( !deadZoneX.contains(player_delta.x) ){    // Beyond Soft zone
-
+        else if ( softZoneX.contains(norm_player_pos.x) ){    // Soft Zone
+            std::cout << "soft\n";
+            // cameraUnadjustedCenter.x += lookaheadState - camera_delta.x;
         }
-        else {                                              // If not beyond Hard or Soft zone, player is within Dead zone
-
+        else {                                              // Hard Zone
+            std::cout << "hard\n";
         }
+        camera.setCameraCenter(cameraUnadjustedCenter);
     }
 
     float alpha;  // alpha to use for damping of camera position, *as well as* for smoothing of
