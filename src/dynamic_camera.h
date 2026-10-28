@@ -45,16 +45,16 @@ struct DynamicCamera {
         sf::Vector2f norm_player_vel = camera.worldToWindowPercentDist(trackedVelocityWorld);
 
         // Compute lookAhead distance in world coords, adjusting for if the player is moving left or right.
-        lookAhead = 0.f;
+        float lookAheadworld = (trackedPosWorld.x - cameraUnadjustedCenter.x);
         if(norm_player_vel.x > 0.f) {
-            lookAhead = norm_player_pos.x - deadZoneX.min;
+            lookAheadworld += camera.windowPercentToWorldDist({lookAhead,0.f}).x;
         }
         else if(norm_player_vel.x < 0.f) {
-            lookAhead = norm_player_pos.x - deadZoneX.max;
+            lookAheadworld -= camera.windowPercentToWorldDist({lookAhead,0.f}).x;
         }
 
         // Now update lookAhead state using an EMA over its previous state and the lookAhead world vector. 
-        lookaheadState = alpha * camera.windowPercentToWorldDist({lookAhead,0.f}).x + (1-alpha) * lookaheadState;
+        lookaheadState = alpha * lookAheadworld + (1-alpha) * lookaheadState;
 
         // Then determine if the player is in the dead zone, soft rejection zone, or hard rejection zone. 
         // For each, perform EMA on the delta of the camera displacement (ignoring lookahead) appropriately. 
@@ -78,6 +78,7 @@ struct DynamicCamera {
         camera.setCameraCenter(
             cameraUnadjustedCenter + sf::Vector2f({lookaheadState,0.f})
         );
+        std::cout << lookaheadState << "\n";
     }
 
     float alpha;  // alpha to use for damping of camera position, *as well as* for smoothing of
