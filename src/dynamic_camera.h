@@ -52,32 +52,32 @@ struct DynamicCamera {
         else if(norm_player_vel.x < 0.f) {
             lookAhead = norm_player_pos.x - deadZoneX.max;
         }
-        std::cout << lookAhead << '\n';
 
         // Now update lookAhead state using an EMA over its previous state and the lookAhead world vector. 
-        lookaheadState = alpha * camera.windowPercentToWorld({lookAhead,0.f}).x + (1-alpha) * lookaheadState;
+        lookaheadState = alpha * camera.windowPercentToWorldDist({lookAhead,0.f}).x + (1-alpha) * lookaheadState;
 
         // Then determine if the player is in the dead zone, soft rejection zone, or hard rejection zone. 
         // For each, perform EMA on the delta of the camera displacement (ignoring lookahead) appropriately. 
-        // Next, set the camera center by offsetting the cameraUnadjustedCenter, combining lookAhead.
-        // Finally update cameraUnadjustedCenter, but without lookahead.
-        
-        sf::Vector2f camera_delta = {
-            alpha * (trackedPosWorld.x - cameraUnadjustedCenter.x) + (1-alpha) * cameraUnadjustedCenter.x,
-            0.f
-        };
-        if( deadZoneX.contains(norm_player_pos.x) ) {         // Dead Zone
-            std::cout << "dead\n";
-            cameraUnadjustedCenter.x += lookaheadState;
+        float percent_displacement = 0.f;
+        if( deadZoneX.contains(norm_player_pos.x) ) {       // Dead Zone
+            // no displacement
         }
-        else if ( softZoneX.contains(norm_player_pos.x) ){    // Soft Zone
-            std::cout << "soft\n";
-            // cameraUnadjustedCenter.x += lookaheadState - camera_delta.x;
+        else if ( softZoneX.contains(norm_player_pos.x) ){  // Soft Zone
+            // softened displacement toward dead zone
+            percent_displacement = alpha * (norm_player_pos.x - std::clamp(norm_player_pos.x, deadZoneX.min, deadZoneX.max));
         }
         else {                                              // Hard Zone
-            std::cout << "hard\n";
+            // hard displacement toward soft zone
+            percent_displacement = (norm_player_pos.x - std::clamp(norm_player_pos.x, softZoneX.min, softZoneX.max));
         }
-        camera.setCameraCenter(cameraUnadjustedCenter);
+        sf::Vector2f camera_displacement = camera.windowPercentToWorldDist({percent_displacement,0.f});
+        // Finally update cameraUnadjustedCenter, but without lookahead.
+        cameraUnadjustedCenter += camera_displacement;
+
+        // Next, set the camera center by offsetting the cameraUnadjustedCenter, combining lookAhead.
+        camera.setCameraCenter(
+            cameraUnadjustedCenter + sf::Vector2f({lookaheadState,0.f})
+        );
     }
 
     float alpha;  // alpha to use for damping of camera position, *as well as* for smoothing of
